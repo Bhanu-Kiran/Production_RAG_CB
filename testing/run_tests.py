@@ -1,5 +1,9 @@
 import os
 import sys
+
+# Bootstrap: Add project root to path for package imports
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from dotenv import load_dotenv
 import google.genai as genai
 from google.genai import types
@@ -12,14 +16,14 @@ client = genai.Client()
 
 # Import only what is available in the user's unmodified chat_V2.py
 try:
-    from chat_V2 import (
+    from chat.chat_V2 import (
         get_google_embedding, 
         retrieve_hybrid_context,
         CHAT_HISTORY,
         condense_query
     )
 except ImportError as e:
-    print(f"❌ Error importing from chat_V2: {e}")
+    print(f"❌ Error importing from chat.chat_V2: {e}")
     sys.exit(1)
 
 def assemble_prompt(user_question, results):
