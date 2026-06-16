@@ -16,14 +16,14 @@ client = genai.Client()
 
 # Import only what is available in the user's unmodified chat_V2.py
 try:
-    from chat.chat_V2 import (
+    from v2_stateful_hybrid_rrf_rag.chat_V2 import (
         get_google_embedding, 
         retrieve_hybrid_context,
         CHAT_HISTORY,
         condense_query
     )
 except ImportError as e:
-    print(f"❌ Error importing from chat.chat_V2: {e}")
+    print(f"❌ Error importing from v2_stateful_hybrid_rrf_rag.chat_V2: {e}")
     sys.exit(1)
 
 def assemble_prompt(user_question, results):
