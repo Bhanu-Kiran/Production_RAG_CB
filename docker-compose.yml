@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  # App 1: The Persistent Vector Database
+  vectordb:
+    image: pgvector/pgvector:pg16
+    container_name: rag_postgres
+    environment:
+      POSTGRES_DB: rag_prod_db
+      POSTGRES_USER: rag_admin
+      POSTGRES_PASSWORD: super_secure_password_123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag_admin -d rag_prod_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # App 2: The Fast In-Memory Queue Broker
+  redis_broker:
+    image: redis:7-alpine
+    container_name: rag_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres_data:

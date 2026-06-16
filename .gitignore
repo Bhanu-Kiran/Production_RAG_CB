@@ -1,0 +1,23 @@
+# Virtual environment
+venv/
+.venv/
+env/
+
+# Environment variables containing API keys
+.env
+
+# Python caching
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Output data/images generated during extraction
+data/extracted_images/
+
+# System specific files
+.DS_Store
+Thumbs.db
+*.Zone.Identifier
+
+data

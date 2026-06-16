@@ -1,0 +1,49 @@
+PROJECT BLUEPRINT & SYSTEM CONTEXT: MULTI-MODAL HEALTHCARE RAG1. System Architecture OverviewThe system is a production-grade, multi-modal Retrieval-Augmented Generation (RAG) pipeline designed to extract, vectorize, store, and query complex corporate healthcare insurance policies (PDF format) containing dense narrative prose, nested bullet points, and highly complex tabular pricing matrices.[Local PDF Policies] 
+       │
+       ▼ (via pdf2image @ 150 DPI)
+[High-Res Page Images] 
+       │
+       ▼ (Vision Extraction via Paid-Tier 'gemini-2.5-flash')
+[Structured Markdown / Tables] 
+       │
+       ├──────────────────────────────────────────┐
+       ▼ (Vectorization via 'gemini-embedding-2')  ▼ (Relational Text Metadata)
+[768-D Semantic Vectors]                  [Raw Page Context Elements]
+       │                                          │
+       └───────────────────┬──────────────────────┘
+                           ▼
+             [Dockerized PostgreSQL + pgvector]
+                           │
+                           ▼ (Cosine Distance Search <=> via chat.py)
+             [Context-Grounded Generation]
+2. Infrastructure & EnvironmentOperating System Environment: Linux environment executing via Windows Subsystem for Linux (WSL2).Database Vector Core: PostgreSQL running isolated inside a Docker container named rag_postgres.Vector Extension: Enabled pgvector for handling high-dimensional floating-point arrays.Python Runtime: Virtual environment (venv) executing Python 3.API Tier Status: Unlocked Paid-Tier / Pay-As-You-Go status via Google AI Studio. Artificial rate-limiting sleep cycles have been removed to enable unthrottled maximum network throughput.3. Database Schema Blueprint (DDL)The schema implements a relational hierarchy linked to a vector store capable of handling page-by-page structural segmentation.SQL-- 1. Document Registry
+CREATE TABLE production_documents (
+    id SERIAL PRIMARY KEY,
+    file_name VARCHAR(255) UNIQUE NOT NULL,
+    total_blocks INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 2. Hierarchical Document Elements & Vector Store
+CREATE TABLE document_elements (
+    id SERIAL PRIMARY KEY,
+    document_id INT REFERENCES production_documents(id) ON DELETE CASCADE,
+    element_type VARCHAR(50) NOT NULL, -- e.g., 'vision_extracted_page'
+    content TEXT NOT NULL,              -- Page text along with structural boundaries
+    parent_element_id INT REFERENCES document_elements(id),
+    embedding vector(768),             -- 768-Dimensional semantic vector
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. Optimization Sparse Indexing
+CREATE INDEX ON document_elements USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX tsvector_idx ON document_elements USING gin(to_tsvector('english', content));
+4. Ingestion Engine Architecture (super_ingest.py)The ingestion script utilizes an optimized page-by-page multi-modal vision extraction stream.Key Algorithmic ImplementationsMemory Deflation: Instead of converting whole PDFs to images globally (which scales exponentially in RAM consumption), the engine reads the document length via pdfinfo_from_path, then selectively renders exactly one page at a time into memory using convert_from_path(..., first_page=page_num, last_page=page_num).Network Network Resilience (60s Shield): Initiates connection handling via client = genai.Client(http_options={'timeout': 60.0}). If a silent socket hang or dropped network packet occurs, the script forcefully throws a timeout exception at 60 seconds instead of pausing indefinitely.Stateful Per-Page Checkpointing: A commit-verify structure ensures the script queries the database for an existing page-signature placeholder ([PAGE X START]%) before running any API operations. If found, it instantly fires a skip operation (⏭️).Anomalous Condition Isolation:Genuine Blank Pages: If Gemini safely processes a page but returns no characters (cover elements/logo sheets), the pipeline substitutes a tracking string ("This page is blank..."), generates a semantic vector, and commits it to maintain database structural parity.Network Timeout/Crashes: If an API exception or timeout cuts the link, the function returns an explicit None. The loop detects this, issues a continue command without running conn.commit(), leaving the checkpoint wide open for subsequent processing sweeps.5. Retrieval & Generation Engine (chat.py)The search script leverages mathematical vector mapping to locate specific context windows within the database.Mathematical Vector SearchWhen a user questions the pipeline, the system extracts a query vector $\vec{q}$ via gemini-embedding-2 scaled to 768 dimensions. It queries pgvector using the Cosine Distance operator (<=>).The system maps historical vectors $\vec{v}$ based on Cosine Similarity:$$\text{Similarity} = 1 - \left( \frac{\vec{q} \cdot \vec{v}}{\|\vec{q}\| \|\vec{v}\|} \right)$$Python# Core SQL Execution Vector Search Block
+cursor.execute("""
+    SELECT d.file_name, e.content, 1 - (e.embedding <=> %s::vector) as similarity
+    FROM document_elements e
+    JOIN production_documents d ON e.document_id = d.id
+    ORDER BY e.embedding <=> %s::vector
+    LIMIT 3;
+""", (query_vector, query_vector))
+Context Aggregation ProtocolThe system isolates the top 3 highest-scoring rows, formats them with descriptive boundaries containing explicit source origin naming identifiers, and pipes them directly into a role-gated generation prompt sent to gemini-2.5-flash. The prompt enforces strict negative-constraint parameters: "Answer the user's question using ONLY the provided policy context below. If the answer is not contained in the context, say 'I cannot find the answer in the provided documents.'"6. Current Implementation State[x] PostgreSQL Docker Container fully operational and stable.[x] Database schema deployed and verified.[x] Unthrottled paid-tier ingestion verified on 104+ target pages.[x] Dynamic live console content snippet teaser active.[x] Database structural validation verified over multiple edge files (IndusInd, Bajaj, ICICI).[x] Baseline chat.py interactive terminal operational.
