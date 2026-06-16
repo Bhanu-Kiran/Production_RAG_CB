@@ -20,4 +20,5 @@ data/extracted_images/
 Thumbs.db
 *.Zone.Identifier
 
+#Raw PDFs to be ingested
 data
