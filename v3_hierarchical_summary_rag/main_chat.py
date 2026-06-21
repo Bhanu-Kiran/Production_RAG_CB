@@ -1,79 +1,86 @@
-# main_chat.py
+import os
 import sys
+from pathlib import Path
+# Add parent directory to sys.path to allow imports from config
+sys.path.append(str(Path(__file__).parent.parent))
+
 from routing.router import analyze_and_route_query
-from retrieval.retriever import execute_hybrid_search
-from generation.generator import generate_response
+from retrieval.retriever import execute_hybrid_retrieval
+from generation.generator import generate_final_response
+from config.config import client
+
+def build_history_string(history_list, max_turns=15):
+    """Compiles the recent conversational history into a clean string for the LLM."""
+    recent_turns = history_list[-max_turns:]
+    compiled = []
+    for turn in recent_turns:
+        compiled.append(f"User: {turn['user']}\nAI: {turn['ai']}")
+    return "\n\n".join(compiled)
 
 def main():
-    print("===============================================================")
-    print(" 🏥 HEALTHCARE INSURANCE CO-PILOT (MODULAR PRODUCTION RAG)     ")
-    print("===============================================================")
+    print("\n" + "="*60)
+    print(" 📘 WELCOME TO YOUR UPGRADED RAG ENGINE")
+    print("      Type your queries below. Type 'exit' or 'quit' to stop.")
+    print("="*60 + "\n")
     
-    # Simple operational conversational history tracking array
-    history = []
+    conversation_history = []
 
     while True:
         try:
-            user_input = input("\nAsk a question about the policies (or type 'exit'): ").strip()
-            if user_input.lower() in ['exit', 'quit']:
-                print("Shutting down co-pilot link. Goodbye.")
-                sys.exit(0)
-                
+            user_input = input("\n👤 You: ").strip()
             if not user_input:
                 continue
+                
+            if user_input.lower() in ['exit', 'quit']:
+                print("\n👋 Closing Notebook session. Goodbye!")
+                break
 
-            # Compile standard string representation of recent history
-            history_str = "\n".join(history[-4:])
+            print("🤖 Processing query...")
+            history_str = build_history_string(conversation_history)
             
-            # STAGE 1: INTENT & METADATA ROUTING
-            print("\n⚡ [1/4] Routing query and determining constraints...")
-            routing = analyze_and_route_query(user_input, history_str)
+            # Step 1: Cognitive Routing
+            routing_blueprint = analyze_and_route_query(user_input, conversation_history=history_str)
+            intent = routing_blueprint.get("intent", "single_search")
             
-            intent = routing.get("intent", "single_search")
-            companies = routing.get("target_companies", [])
-            sub_queries = routing.get("search_queries", [user_input])
-            
-            print(f"   └── [Routing Profile]: Intent='{intent}', Entities={companies}")
-
-            # STAGE 2: CONTROL LAYER INTERCEPTION (CHITCHAT SAFETY VALVE)
+            # Step 2: Route Execution
             if intent == "chitchat":
-                print("💬 [2/4] Chitchat detected. Bypassing document stores...")
-                # Handle chitchat natively via rapid generation pass without DB hit
-                from config.config import client
-                response = client.models.generate_content(model='gemini-3.1-flash-lite', contents=user_input)
-                print(f"\n========================= AI RESPONSE =========================\n{response.text}")
-                print("===============================================================")
-                continue
-
-            # STAGE 3: DATA GATHERING & DECOMPOSITION RESOLUTION
-            print("🔍 [2/4] Executing isolated database hybrid searches...")
-            aggregated_chunks = []
+                print("   └─ [Routing: Chitchat Bypass]")
+                response = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=f"Respond naturally to this user greeting/pleasantry, keeping it brief:\n{user_input}"
+                )
+                final_answer = response.text.strip()
+            else:
+                search_queries = routing_blueprint.get("search_queries", [])
+                targets = routing_blueprint.get("target_documents", [])
+                
+                print(f"   └─ [Routing: {intent.upper()}] Targets: {targets} | Sub-Queries: {len(search_queries)}")
+                
+                # Fetch over-fetched, MMR-diversified, and Cross-Encoder reranked chunks
+                retrieved_chunks = execute_hybrid_retrieval(
+                                                        routing_blueprint, 
+                                                        over_fetch_limit=50,   # Stage 1: Pull 50 matching candidates from DB
+                                                        mmr_k=20,              # Stage 2: Reduce to 20 unique entries via MMR
+                                                        final_k=6              # Stage 3: Return top 6 context items post Cross-Encoding
+                                                    )
+                
+                # Step 3: Synthesis
+                final_answer = generate_final_response(
+                    user_query=user_input,
+                    retrieved_chunks=retrieved_chunks,
+                    conversation_history=history_str
+                )
             
-            # Loop through sub-queries generated during decomposition
-            for sub_q in sub_queries:
-                print(f"   ├── Searching vector index for: '{sub_q}'")
-                # Retrieve top chunks for each individual sub-query to prevent starvation
-                chunks = execute_hybrid_search(sub_q, companies, limit=4)
-                aggregated_chunks.extend(chunks)
-
-            # Deduplicate items by text value if identical fragments bleed into cross-search windows
-            unique_chunks = {c['content']: c for c in aggregated_chunks}.values()
+            print(f"\n🤖 AI:\n{final_answer}")
+            print("\n" + "-"*40)
             
-            # STAGE 4: RESPONSE SYNTHESIS
-            print("📝 [3/4] Fusing balanced context blocks...")
-            print("💬 [4/4] Finalizing text output sequence...")
-            final_answer = generate_response(user_input, list(unique_chunks))
+            conversation_history.append({"user": user_input, "ai": final_answer})
             
-            print(f"\n========================= AI RESPONSE =========================\n{final_answer}")
-            print("===============================================================")
-            
-            # Append exchange state to memory array
-            history.append(f"User: {user_input}")
-            history.append(f"AI: {final_answer}")
-
         except KeyboardInterrupt:
-            print("\nLink interrupted. Exiting session.")
-            break
+            print("\n\n👋 Session interrupted. Goodbye!")
+            sys.exit(0)
+        except Exception as e:
+            print(f"\n❌ CRITICAL SYSTEM ERROR: {e}")
 
 if __name__ == "__main__":
     main()

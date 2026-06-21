@@ -1,21 +1,35 @@
-# config.py
 import os
+import sys
 import psycopg2
-from dotenv import load_dotenv
 import google.genai as genai
+from dotenv import load_dotenv
 
-# Load environment configuration variables by looking up two levels to the root directory
-load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '.env'))
+# 1. Load System Environment
+load_dotenv(override=True)
 
-# Initialize the official central Google GenAI Client
-client = genai.Client(http_options={'timeout': 60.0})
+# 2. Configure the Google Gemini Client
+api_key = os.getenv("GEMINI_API_KEY")
+if not api_key:
+    print("❌ CRITICAL ERROR: GEMINI_API_KEY is missing from your .env file.")
+    sys.exit(1)
 
+client = genai.Client(api_key=api_key)
+
+# 3. Configure Hugging Face API Key
+HF_KEY = os.getenv("HF_KEY")
+if not HF_KEY:
+    print("⚠️ WARNING: HF_KEY is missing. Reranking will be disabled/fallback.")
+
+# 4. Database Connection Pooler
 def get_db_connection():
-    """Returns a raw active connection instance to the PostgreSQL container."""
-    return psycopg2.connect(
-        dbname=os.getenv("DB_NAME"),
-        user=os.getenv("DB_USER"),
-        password=os.getenv("DB_PASSWORD"),
-        host=os.getenv("DB_HOST"),
-        port=os.getenv("DB_PORT")
-    )
+    try:
+        return psycopg2.connect(
+            dbname=os.getenv("DB_NAME"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            host=os.getenv("DB_HOST"),
+            port=os.getenv("DB_PORT")
+        )
+    except Exception as e:
+        print(f"❌ DATABASE CONNECTION FAILED: {e}")
+        sys.exit(1)
