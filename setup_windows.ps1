@@ -1,4 +1,4 @@
-# PowerShell Script for One-Click Windows Environment Setup for RAG Pipeline V3
+﻿# PowerShell Script for One-Click Windows Environment Setup for RAG Pipeline V3
 # Usage: Right-click this file and choose "Run with PowerShell"
 
 $ErrorActionPreference = "Stop"
@@ -49,7 +49,7 @@ $popplerBin = Get-ChildItem -Path $popplerBaseDir -Filter "bin" -Recurse | Selec
 
 if ($null -eq $popplerBin) {
     Write-Host "   Downloading Poppler for Windows (Pre-compiled binaries)..." -ForegroundColor Cyan
-    $popplerUrl = "https://github.com/oschwartz10612/poppler-windows/releases/download/v24.03.0-0/Release-24.03.0-0.zip"
+    $popplerUrl = "https://github.com/oschwartz10612/poppler-windows/releases/download/v26.02.0-0/Release-26.02.0-0.zip"
     $zipPath = Join-Path $popplerBaseDir "poppler.zip"
     
     # Download zip file

@@ -22,3 +22,6 @@ Thumbs.db
 
 #Raw PDFs to be ingested
 data
+
+# poppler exclusion
+Utilities/poppler
