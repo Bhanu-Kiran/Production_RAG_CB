@@ -102,7 +102,8 @@ def run_unleashed_ingestion():
                 print(f"   └── [Log] Registered new document. Assigned ID: {doc_id}")
             
             # 2. Get Total Page Count instantly without loading images
-            info = pdfinfo_from_path(file_path)
+            poppler_path = os.getenv("POPPLER_PATH")
+            info = pdfinfo_from_path(file_path, poppler_path=poppler_path)
             total_pages = info["Pages"]
             print(f"   └── [Log] Target document length detected: {total_pages} pages.")
             print(f"   └── [Log] Launching unthrottled streaming worker loops...")
@@ -125,7 +126,7 @@ def run_unleashed_ingestion():
                 
                 # Render ONLY the targeted page to completely eliminate RAM bloat
                 convert_start = time.time()
-                images = convert_from_path(file_path, dpi=150, first_page=page_num, last_page=page_num)
+                images = convert_from_path(file_path, dpi=150, first_page=page_num, last_page=page_num, poppler_path=poppler_path)
                 single_page_image = images[0]
                 convert_duration = time.time() - convert_start
                 print(f"            ├── [Image Rendered]: {convert_duration:.2f}s")

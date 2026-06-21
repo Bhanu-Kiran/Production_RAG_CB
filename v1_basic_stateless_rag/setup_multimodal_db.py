@@ -107,7 +107,8 @@ def run_unleashed_ingestion():
                 print(f"   └── [Log] Registered new document. Assigned ID: {doc_id}")
             
             # 2. Get Total Page Count instantly without loading images
-            info = pdfinfo_from_path(file_path)
+            poppler_path = os.getenv("POPPLER_PATH")
+            info = pdfinfo_from_path(file_path, poppler_path=poppler_path)
             total_pages = info["Pages"]
             print(f"   └── [Log] Target document length detected: {total_pages} pages.")
             print(f"   └── [Log] Launching unthrottled streaming worker loops...")
@@ -130,7 +131,7 @@ def run_unleashed_ingestion():
                 
                 # Render ONLY the targeted page to completely eliminate RAM bloat
                 convert_start = time.time()
-                images = convert_from_path(file_path, dpi=150, first_page=page_num, last_page=page_num)
+                images = convert_from_path(file_path, dpi=150, first_page=page_num, last_page=page_num, poppler_path=poppler_path)
                 single_page_image = images[0]
                 convert_duration = time.time() - convert_start
                 print(f"            ├── [Image Rendered]: {convert_duration:.2f}s")
@@ -145,3 +146,54 @@ def run_unleashed_ingestion():
                     print(f"            ❌ [Network Timeout]: Connection failed. Skipping DB save to preserve checkpoint.")
                     time.sleep(2) # Brief pause before trying the next page
                     continue
+                
+                if not page_content:
+                    print(f"            ├── [Gemini Response]: Returned empty. Identified as blank space or logo page.")
+                    page_content = "This page is blank or contains non-extractable design layout elements."
+                else:
+                    print(f"            ├── [Gemini Response]: Extraction complete in {gemini_duration:.2f}s")
+                
+                # Execute Vector Embeddings
+                embed_start = time.time()
+                vector = get_google_embedding(page_content)
+                embed_duration = time.time() - embed_start
+                
+                if vector:
+                    print(f"            ├── [Vector Generated]: 768-D array calculated in {embed_duration:.2f}s")
+                    
+                    db_start = time.time()
+                    formatted_content = f"[PAGE {page_num} START]\n{page_content}\n[PAGE {page_num} END]"
+                    cursor.execute(
+                        """
+                        INSERT INTO document_elements 
+                        (document_id, element_type, content, parent_element_id, embedding)
+                        VALUES (%s, %s, %s, NULL, %s);
+                        """,
+                        (doc_id, "vision_extracted_page", formatted_content, vector)
+                    )
+                    conn.commit()
+                    db_duration = time.time() - db_start
+                    print(f"            └── [Postgres Commit]: Saved securely to DB in {db_duration:.4f}s")
+                else:
+                    print(f"            ❌ [Error]: Failed to generate vector. Page {page_num} omitted.")
+                
+                time.sleep(0.1)
+                
+            file_total_duration = time.time() - file_start_time
+            cursor.execute("UPDATE production_documents SET total_blocks = %s WHERE id = %s;", (total_pages, doc_id))
+            conn.commit()
+            print(f"   🏆 [File Complete]: Finished {file_name} in {file_total_duration:.2f} seconds!")
+            
+        print("\n=====================================================================")
+        print(" 🎉 SUCCESS: ALL CORPORATE HEALTHCARE POLICIES COMMITTED TO DATABASE.")
+        print("=====================================================================")
+
+    except Exception as e:
+        print(f"\n[X] CRITICAL SYSTEM FAULT: {e}")
+        conn.rollback()
+    finally:
+        cursor.close()
+        conn.close()
+
+if __name__ == "__main__":
+    run_unleashed_ingestion()

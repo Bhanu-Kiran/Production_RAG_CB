@@ -125,7 +125,8 @@ def run_fast_ingestion():
             print(f"\n📁 [FILE {file_idx}/{total_files}]: {file_name}")
             
             # --- Document Registration ---
-            info = pdfinfo_from_path(file_path)
+            poppler_path = os.getenv("POPPLER_PATH")
+            info = pdfinfo_from_path(file_path, poppler_path=poppler_path)
             total_pages = info["Pages"]
             
             cursor.execute("SELECT id, clean_title, global_summary FROM production_documents WHERE file_name = %s;", (file_name,))
@@ -137,7 +138,7 @@ def run_fast_ingestion():
             else:
                 print("   └── [Log] New document detected. Extracting identity from Cover Page...")
                 # Render only page 1 for identity extraction
-                cover_image = convert_from_path(file_path, dpi=100, first_page=1, last_page=1)[0]
+                cover_image = convert_from_path(file_path, dpi=100, first_page=1, last_page=1, poppler_path=poppler_path)[0]
                 clean_title, global_summary = extract_identity_fast(cover_image)
                 
                 cursor.execute(
@@ -167,7 +168,7 @@ def run_fast_ingestion():
                 # 1. Render Image
                 render_start = time.time()
                 # DPI 150 is the perfect balance between OCR clarity and memory speed
-                images = convert_from_path(file_path, dpi=150, first_page=page_num, last_page=page_num)
+                images = convert_from_path(file_path, dpi=150, first_page=page_num, last_page=page_num, poppler_path=poppler_path)
                 page_image = images[0]
                 render_duration = time.time() - render_start
                 print(f"            ├── [Image Rendered]: {render_duration:.2f}s")
