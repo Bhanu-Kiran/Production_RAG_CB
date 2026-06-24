@@ -1,58 +1,56 @@
-# RAG Pipeline - Production Dependencies
+--extra-index-url https://download.pytorch.org/whl/cu126
 
 # Core API & Configuration
 google-genai>=2.8.0
 python-dotenv>=1.2.2
 
-# Database Connectivity
-psycopg2-binary>=2.9.12
+# Core AI & LLM Ecosystem (GPU Accelerated)
+torch
+torchvision
+torchaudio
+sentence-transformers>=3.3.0
 
-# Retrieval & Machine Learning (Cross-Encoder / MMR)
-sentence-transformers>=5.5.1
-numpy>=2.4.6
-scipy>=1.17.1
+# Database Connectivity & Architecture
+psycopg2-binary>=2.9.12
+pgvector>=0.2.5
+
+# Retrieval, Search & Mathematics
+rank-bm25>=0.2.2
+numpy>=2.0.0,<2.3.0
+scipy>=1.13.0
 
 # Ingestion / PDF Processing
 pdf2image>=1.17.0
-unstructured>=0.18.32
-tqdm>=4.68.2
+unstructured>=0.16.0
+python-magic-bin>=0.4.14
+tqdm>=4.66.0
 
 # Auditing & Report Generation
-pandas>=3.0.3
-openpyxl>=3.1.5
-
+pandas>=2.2.0
+openpyxl>=3.1.0
 
 ################################################################################
-# WINDOWS ENVIRONMENT SETUP NOTES
+# WINDOWS PRODUCTION ENVIRONMENT CODES & SETUP CONFIGURATION
 ################################################################################
 # 
-# 1. Poppler (Required for pdf2image to convert PDF pages to images)
-#    - Linux: Can be installed via `sudo apt-get install poppler-utils`.
-#    - Windows: 
-#      a. Download the latest Windows binaries of Poppler (e.g., from: 
-#         https://github.com/oschwartz10612/poppler-windows/releases/ )
-#      b. Extract the downloaded ZIP folder (e.g., to C:\Program Files\poppler).
-#      c. Add the `bin/` directory (e.g., `C:\Program Files\poppler\Library\bin`)
-#         to your Windows System Environment variables (PATH).
-#      d. Alternatively, pass the path directly in your python ingestion code:
-#         `convert_from_path(..., poppler_path=r"C:\Program Files\poppler\Library\bin")`
+# 1. POPPLER DEPLOYMENT (Required for pdf2image processing)
+#    - Download compiled Windows binaries from:
+#      https://github.com/oschwartz10612/poppler-windows/releases/
+#    - Extract ZIP to a secure location (e.g., C:\Program Files\poppler)
+#    - Add the bin folder path to your Windows System Environment Variable (PATH):
+#      "C:\Program Files\poppler\Library\bin"
 #
-# 2. Libmagic (Required for unstructured library file type detection)
-#    - Linux: Usually works natively or via `sudo apt-get install libmagic-dev`.
-#    - Windows: `libmagic` does not come natively. You need to install the Windows port:
-#      `pip install python-magic-bin`
+# 2. LIBMAGIC SYSTEM BINARIES (Resolved)
+#    - Handled completely via 'python-magic-bin' directly inside this file.
+#      No external DLL configurations are required on Windows.
 #
-# 3. Psycopg2 (Database connection)
-#    - Windows & Linux: We use `psycopg2-binary` instead of `psycopg2`. 
-#      This avoids compiling from source and does not require PostgreSQL C-headers 
-#      or a C++ compiler to be installed locally.
+# 3. PSYCOPG2 BINDINGS (Resolved)
+#    - Uses 'psycopg2-binary' to ensure seamless interaction with PostgreSQL
+#      without requiring local Visual Studio C++ Compilers or pg_config tools.
 #
-# 4. Tesseract OCR (Optional, required if unstructured needs OCR on scanned PDFs)
-#    - Windows: Download and install the Tesseract installer from UB Mannheim.
-#    - Add `C:\Program Files\Tesseract-OCR` to the system environment variables PATH.
-#
-# 5. C++ Build Tools (Required if any dependency tries to compile wheel extensions)
-#    - Windows: If you encounter compiler errors, install Visual Studio Build Tools 
-#      with the "Desktop development with C++" workload selected.
+# 4. PYTORCH CUDA OVERRIDE ENGINE
+#    - If network drops cause a fallback to CPU builds (+cpu), run:
+#      pip uninstall torch torchvision torchaudio -y
+#      pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
 #
 ################################################################################
